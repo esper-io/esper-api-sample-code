@@ -24,13 +24,16 @@ import argparse
 active_device_list = []
 inactive_device_list = []
 
-#### TYRELL CORP CONFIG #######
+#### Enterprise Configuration #######
 
+# Please fill the varibales under <>
 configuration = esperclient.Configuration()
-configuration.host = 'https://tyrellcorp-api.shoonyacloud.com/api'
-configuration.api_key['Authorization'] = 'RaCh1Ty3L181AdE4uN32e593rD3ck36'
+configuration.host = 'https://<endpoint-name>-api.shoonyacloud.com/api'
+configuration.api_key['Authorization'] = '<API-KEY>'
 configuration.api_key_prefix['Authorization'] = 'Bearer'
-enterprise_id = '5da4cf47-398c-4cea-82be-2796a3f23c3c'
+enterprise_id = '<ENTERPRISE-ID>'
+configuration.group_per_page_limit = 5000  # int | Number of results to return per page. (optional) (default to 20)
+configuration.group_per_page_offset = 0    # int | The initial index from which to return the results. (optional) (default to 0)
 
 ###############################
 
@@ -64,9 +67,6 @@ def is_package_whitelisted(device_id, package_name):
 
 
 def whitelist_package_in_group_devices(device_list, package_name):
-    # Fetch all devices in group
-
-    # None check
     print("Currently active devices in group: ")
     print([device.device_name for device in device_list])
 
@@ -88,7 +88,6 @@ def run_uninstall_command(device, package_name, app_id):
     api_instance = esperclient.CommandsApi(esperclient.ApiClient(configuration))
     command_args = esperclient.CommandArgs(package_name=package_name, app_version = app_id)
     command = esperclient.CommandRequest(command='UNINSTALL', command_args=command_args)
-    #print(command)
     try:
         api_response = api_instance.run_command(enterprise_id, device.id, command)
         if api_response.id is not None:
@@ -98,13 +97,12 @@ def run_uninstall_command(device, package_name, app_id):
 
 
 def uninstall_package_in_group_devices(device_list, package_name):
-    # Fetch all devices in group
 
     print("Currently active devices in group: ")
     print([device.device_name for device in device_list])
 
     for device in device_list:
-        app_id = is_package_installed(device.id, package_name)
+        app_id = get_package_id(device.id, package_name)
         if app_id:
             try:
                 run_uninstall_command(device, package_name, app_id)
@@ -114,7 +112,8 @@ def uninstall_package_in_group_devices(device_list, package_name):
         else:
             print('Warning: Package already uninstalled or not present on device: ' + device.device_name)
 
-def is_package_installed(device_id, package_name):
+# This function returns the package app id if installed else return null
+def get_package_id(device_id, package_name):
     querystring = {"package_name": package_name, "whitelisted":"false"}
     payload = ""
     headers = {
@@ -129,27 +128,20 @@ def is_package_installed(device_id, package_name):
         app_id = response.results[0].application.version.app_version_id
         if app_id:
           return response.results[0].application.version.app_version_id
-        else:
-            return 0
-    else:
-        #print("App doesn't exist")
-        return 0
+    return
+
 
 
 # ====== Get All the devices in a group ========
 
 def get_devices_in_group(group_id):
     # create an instance of the API class
-
     api_instance = esperclient.DeviceApi(esperclient.ApiClient(configuration))
-    limit = 5000 # int | Number of results to return per page. (optional) (default to 20)
-    offset = 0 # int | The initial index from which to return the results. (optional) (default to 0)
-
+    active_device_list = []
     try:
-        api_response = api_instance.get_all_devices(enterprise_id, group=group_id, limit=limit, offset=offset)
-        #print(api_response)
-        active_device_list = []
-        # None check
+        api_response = api_instance.get_all_devices(enterprise_id, group=group_id,
+                                                    limit=configuration.group_per_page_limit,
+                                                    offset=configuration.group_per_page_offset)
         if len(api_response.results) > 0:
             for device in api_response.results:
                 if device.status == 1:  # Check for active devices only
@@ -161,8 +153,6 @@ def get_devices_in_group(group_id):
 
     return active_device_list
 
-def get_group_id_by_name(name):
-    api_instance = esperclient.DeviceApi(esperclient.ApiClient(configuration))
 
 def change_settings(command, value, group_id):
     device_list = get_devices_in_group(group_id)
@@ -378,15 +368,11 @@ def main(argv):
     parser.add_argument(
         '-v', '--value',
         dest='value',
-        #required=True,
         help="value"
     )
 
     args = parser.parse_args()
 
-    #print(args.command)
-    #print(args.group_id)
-    #print(args.value)
 
     # make sure if command is given, value should also be provided
     if args.command and (args.value is None) and args.command != "ping":
