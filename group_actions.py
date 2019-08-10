@@ -2,7 +2,7 @@
 esper app usage
 
 usage: esper_group_actions [-h]
-        -c  {uninstall, whitelist, brightness, alarm_volume, ring_volume,
+        -c  {uninstall, install, whitelist, brightness, alarm_volume, ring_volume,
              music_volume, notification_volume, bluetooth, wifi, gps, ping, reboot}
         -g  GROUP_ID
         -v  VALUE
@@ -11,6 +11,8 @@ example:
 
 ./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ring_volume -v 50
 ./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ping
+./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c install -v io.esper.samplesdk -version "1.0"
+
 
 Runs on all active devices in a group. API key is required.
 """
@@ -25,6 +27,7 @@ from esperclient.rest import ApiException
 
 ACTIVE_DEVICE_LIST = []
 INACTIVE_DEVICE_LIST = []
+
 
 #### Enterprise Configuration #######
 
@@ -101,6 +104,82 @@ def whitelist_package_in_group_devices(package_name):
             print('Warning: Package already whitelisted or not present on device: {}'
                 .format(device.device_name))
 
+# ====== INSTALL TO GROUP ==========
+
+
+"""
+Return application id of specific package name and version code stored 
+in environemtn. Return None if not present.
+"""
+def get_app_id(package_name, version_code):
+    app_api_instance = esperclient.ApplicationApi(esperclient.ApiClient(CONFIGURATION))
+    response = app_api_instance.get_all_applications(ENTERPRISE_ID)
+    #print(response)
+    i = 0
+
+    while (i < response.count):
+        # found the package already present in the environment
+        if response.results[i].package_name == package_name:
+            version_len = (len(response.results[i].versions))
+
+            # if version_code is none, then use the first version provided to install
+            j = 0
+            while (j < version_len and version_code is not None):
+                if response.results[i].versions[j].version_code == version_code:
+                    # found the same version code to install, store the j value to use
+                    # else use the first instance of App version given
+                    break
+                else:
+                    j = j+1
+
+            if j == version_len:
+                # this means that specific version code is not found in the list, do nothing
+                # bail out from here
+                print("Version not found")
+                return None
+
+            # Here will come if version found or no version is provided to install
+            app_version_id = response.results[i].versions[j].id
+            return app_version_id
+        else:
+            # check for next package in list
+            i = i+1
+    return None
+
+
+"""
+Run installation of app package name and specific app_version to device
+"""
+def run_install_command(device, package_name, app_version_id):
+
+    api_instance = esperclient.CommandsApi(esperclient.ApiClient(CONFIGURATION))
+    command_args = esperclient.CommandArgs(package_name=package_name, app_version=app_version_id)
+    command = esperclient.CommandRequest(command='INSTALL', command_args=command_args)
+    try:
+        api_response = api_instance.run_command(ENTERPRISE_ID, device.id, command)
+        if api_response.id is not None:
+            print('Install command fired successfully on ' + device.device_name + \
+                  ' for ' + package_name)
+    except ApiException as api_exception:
+        print("Exception when calling CommandsApi->run_command: %s\n" % api_exception)
+
+"""
+install package to entire group active devices
+"""
+def install_package_to_group_devices(package_name, version_code):
+
+    # get app_id from version code
+    app_id = get_app_id(package_name, version_code)
+    if app_id is None:
+        print("No Such App or App Version exist in Environment, Please upload it first and then install")
+        return
+
+    print("Install Currently active devices in group: ")
+    print([device.device_name for device in ACTIVE_DEVICE_LIST])
+
+    # install the app_id on all active devices
+    for device in ACTIVE_DEVICE_LIST:
+        run_install_command(device, package_name, app_id)
 
 # ====== UNINSTALL FROM GROUP ==========
 
@@ -147,6 +226,7 @@ def get_package_id(device_id, package_name):
     api_instance = esperclient.DeviceApi(esperclient.ApiClient(CONFIGURATION))
     response = api_instance.get_app_installs(ENTERPRISE_ID, device_id, package_name=package_name)
     if response and response.count > 0:
+        print("getting package id for package_name")
         app_id = response.results[0].application.version.app_version_id
         if app_id:
             return response.results[0].application.version.app_version_id
@@ -174,12 +254,14 @@ def get_devices_in_group(group_id):
 """
 parse command and value and call appropriate functions
 """
-def parse_command(command, value, group_id):
+def parse_command(command, value, group_id, version_code):
     get_devices_in_group(group_id)
     if command == "whitelist":
         whitelist_package_in_group_devices(value)
     elif command == "uninstall":
         uninstall_package_in_group_devices(value)
+    elif command == "install":
+        install_package_to_group_devices(value, version_code)
     else:
         # for all other device commands
         change_device_settings(command, value)
@@ -365,7 +447,7 @@ def main():
         '-c', '--command', '--name',
         dest='command',
         required=True,
-        choices=['uninstall', 'whitelist', 'brightness', 'alarm_volume', 'ring_volume',
+        choices=['uninstall', 'install', 'whitelist', 'brightness', 'alarm_volume', 'ring_volume',
                  'music_volume', 'notification_volume', 'bluetooth', 'wifi', 'gps', 'ping',
                  'reboot'],
         help="Esper Management App Release Channel."
@@ -384,18 +466,25 @@ def main():
         help="value"
     )
 
+    parser.add_argument(
+        '-version', '--version',
+        dest='version',
+        help="version"
+    )
+
     args = parser.parse_args()
 
     # make sure if command is given, value should also be provided
-    if args.command and (args.value is None) and args.command != "ping":
-        print("\nValue has to be provided along with command with -v option.\n")
-        parser.print_help()
-        sys.exit(1)
+    if args.command and (args.value is None):
+        if (not (args.command in ["ping", "reboot"])):
+            print("\nValue has to be provided along with command with -v option.\n")
+            parser.print_help()
+            sys.exit(1)
     if args.value and (args.command is None):
         print("Please pass the command as well along with value")
         sys.exit(1)
 
-    parse_command(args.command, args.value, args.group_id)
+    parse_command(args.command, args.value, args.group_id, args.version)
 
 
 if __name__ == "__main__":
