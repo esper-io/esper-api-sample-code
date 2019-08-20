@@ -109,43 +109,45 @@ def whitelist_package_in_group_devices(package_name):
 
 """
 Return application id of specific package name and version code stored 
-in environemtn. Return None if not present.
+in environemnt. Return None if not present.
 """
 def get_app_id(package_name, version_code):
-    app_api_instance = esperclient.ApplicationApi(esperclient.ApiClient(CONFIGURATION))
-    response = app_api_instance.get_all_applications(ENTERPRISE_ID)
-    #print(response)
-    i = 0
+    try:
+        app_api_instance = esperclient.ApplicationApi(esperclient.ApiClient(CONFIGURATION))
+        response = app_api_instance.get_all_applications(ENTERPRISE_ID)
+        i = 0 # loop over all the packages in system
 
-    while (i < response.count):
-        # found the package already present in the environment
-        if response.results[i].package_name == package_name:
-            version_len = (len(response.results[i].versions))
+        while (response is not None and i < response.count):
+            # found the package already present in the environment
+            if response.results[i] and response.results[i].package_name == package_name:
+                version_len = (len(response.results[i].versions))
 
-            # if version_code is none, then use the first version provided to install
-            j = 0
-            while (j < version_len and version_code is not None):
-                if response.results[i].versions[j].version_code == version_code:
-                    # found the same version code to install, store the j value to use
-                    # else use the first instance of App version given
-                    break
-                else:
-                    j = j+1
+                # if version_code is none, then use the first version provided to install
+                j = 0 # loop over all the versions of this app
+                while (j < version_len and version_code is not None):
+                    if response.results[i].versions is not None and \
+                            response.results[i].versions[j].version_code == version_code:
+                        # found the same version code to install, store the j value to use
+                        # else use the first instance of App version given
+                        break
+                    else:
+                        j = j+1
 
-            if j == version_len:
-                # this means that specific version code is not found in the list, do nothing
-                # bail out from here
-                print("Version not found")
-                return None
+                if j == version_len:
+                    # this means that specific version code is not found in the list, do nothing
+                    # bail out from here
+                    print("Version not found")
+                    return None
 
-            # Here will come if version found or no version is provided to install
-            app_version_id = response.results[i].versions[j].id
-            return app_version_id
-        else:
-            # check for next package in list
-            i = i+1
+                # Here will come if version found or no version is provided to install
+                app_version_id = response.results[i].versions[j].id
+                return app_version_id
+            else:
+                # check for next package in list
+                i = i+1
+    except Exception as exception:
+        print("Exception when calling CommandsApi->run_command: %s\n" % exception)
     return None
-
 
 """
 Run installation of app package name and specific app_version to device
@@ -167,7 +169,6 @@ def run_install_command(device, package_name, app_version_id):
 install package to entire group active devices
 """
 def install_package_to_group_devices(package_name, version_code):
-
     # get app_id from version code
     app_id = get_app_id(package_name, version_code)
     if app_id is None:
