@@ -41,9 +41,9 @@ CONFIGURATION.api_key_prefix['Authorization'] = 'Bearer'
 ENTERPRISE_ID = '<ENTERPRISE-ID>'
 
 # int | Number of results to return per page. (optional) (default to 20)
-CONFIGURATION.group_per_page_limit = 5000
+CONFIGURATION.per_page_limit = 5000
 # int | The initial index from which to return the results.(optional) default to 0)
-CONFIGURATION.group_per_page_offset = 0
+CONFIGURATION.per_page_offset = 0
 
 ###############################
 
@@ -243,8 +243,8 @@ def get_devices_in_group(group_id):
     api_instance = esperclient.DeviceApi(esperclient.ApiClient(CONFIGURATION))
     try:
         api_response = api_instance.get_all_devices(ENTERPRISE_ID, group=group_id,
-                                                    limit=CONFIGURATION.group_per_page_limit,
-                                                    offset=CONFIGURATION.group_per_page_offset)
+                                                    limit=CONFIGURATION.per_page_limit,
+                                                    offset=CONFIGURATION.per_page_offset)
         if len(api_response.results):
             for device in api_response.results:
                 if device.status == 1:  # Check for active devices only
@@ -258,10 +258,11 @@ def get_all_devices_in_enterprise():
     # create an instance of the API class
     api_instance = esperclient.DeviceGroupApi(esperclient.ApiClient(CONFIGURATION))
     try:
-        api_response = api_instance.get_all_groups(ENTERPRISE_ID)
+        api_response = api_instance.get_all_groups(ENTERPRISE_ID,
+                                                    limit=CONFIGURATION.per_page_limit,
+                                                    offset=CONFIGURATION.per_page_offset)
         if len(api_response.results):
             for group in api_response.results:
-                #print(group.id)
                 # add all the devices in this group to global list of devices
                 get_devices_in_group(group.id)
 
