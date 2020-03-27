@@ -1,5 +1,5 @@
 # esper-api-sample-code
-Sample Codes demonstrating use of Esper API's
+Code samples demonstrating use of Esper APIs
 
 - This python script allows all the individual device commands to be
   fire on the specific group or all the device under enterprise.
@@ -9,15 +9,19 @@ Sample Codes demonstrating use of Esper API's
 Please edit the python file to update your Enterprise Related information
 under CONFIGURATION: endpoint-name, API-KEY and ENTERPRISE-ID
 
+```
 CONFIGURATION.host = 'https://<endpoint-name>-api.shoonyacloud.com/api'
 CONFIGURATION.api_key['Authorization'] = '<API-KEY>'
 ENTERPRISE_ID = '<ENTERPRISE-ID>'
+```
 
 
 - Supported commands:
+
   uninstall, whitelist, brightness, alarm_volume, ring_volume, music_volume, notification_volume, bluetooth, wifi, gps, ping, reboot
   
 - Usage:
+
   esper_group_actions [-h]
    -c {uninstall, whitelist, brightness, alarm_volume, ring_volume, music_volume, notification_volume, bluetooth, wifi, gps, ping, reboot}
    -g GROUP_ID (or "all" for all the devices in a all the groups)
@@ -30,5 +34,3 @@ ENTERPRISE_ID = '<ENTERPRISE-ID>'
   ./esper_group_actions -g all -c reboot
   ./esper_group_actions -g all -c ping
 
-
-  
