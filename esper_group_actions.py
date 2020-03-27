@@ -4,7 +4,7 @@ esper app usage
 usage: esper_group_actions [-h]
         -c  {uninstall, install, whitelist, brightness, alarm_volume, ring_volume,
              music_volume, notification_volume, bluetooth, wifi, gps, ping, reboot}
-        -g  GROUP_ID
+        -g GROUP_ID (or "all" for all the devices in a all the groups)
         -v  VALUE
 
 example:
@@ -12,10 +12,12 @@ example:
 ./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ring_volume -v 50
 ./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ping
 ./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c install -v io.esper.samplesdk -version "1.0"
-
+./esper_group_actions -g all -c reboot
+./esper_group_actions -g all -c ping
 
 Runs on all active devices in a group. API key is required.
 """
+
 from __future__ import print_function
 import sys
 import time
@@ -252,11 +254,30 @@ def get_devices_in_group(group_id):
     except ApiException as api_exception:
         print("Exception when calling DeviceApi->get_all_devices: %s\n" % api_exception)
 
+def get_all_devices_in_enterprise():
+    # create an instance of the API class
+    api_instance = esperclient.DeviceGroupApi(esperclient.ApiClient(CONFIGURATION))
+    try:
+        api_response = api_instance.get_all_groups(ENTERPRISE_ID)
+        if len(api_response.results):
+            for group in api_response.results:
+                #print(group.id)
+                # add all the devices in this group to global list of devices
+                get_devices_in_group(group.id)
+
+    except ApiException as e:
+        print("Exception when calling DeviceGroupApi->get_all_groups: %s\n" % e)    
+
+
 """
 parse command and value and call appropriate functions
 """
 def parse_command(command, value, group_id, version_code):
-    get_devices_in_group(group_id)
+    if group_id == "all":
+        get_all_devices_in_enterprise()
+    else:
+        get_devices_in_group(group_id)
+    
     if command == "whitelist":
         whitelist_package_in_group_devices(value)
     elif command == "uninstall":
@@ -266,7 +287,6 @@ def parse_command(command, value, group_id, version_code):
     else:
         # for all other device commands
         change_device_settings(command, value)
-
 """
 change device settings
 """
