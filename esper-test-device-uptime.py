@@ -1,22 +1,3 @@
-"""
-esper app usage
-
-usage: esper_group_actions [-h]
-        -c  {uninstall, install, whitelist, brightness, alarm_volume, ring_volume,
-             music_volume, notification_volume, bluetooth, wifi, gps, ping, reboot}
-        -g GROUP_ID (or "all" for all the devices in a all the groups)
-        -v  VALUE
-
-example:
-
-./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ring_volume -v 50
-./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c ping
-./esper_group_actions -g 52ecfb3c-d1ad-4e66-8cf9-85daff8d7f3c -c install -v io.esper.samplesdk -version "1.0"
-./esper_group_actions -g all -c reboot
-./esper_group_actions -g all -c ping
-
-Runs on all active devices in a group. API key is required.
-"""
 
 from __future__ import print_function
 import sys
@@ -26,13 +7,6 @@ import requests
 import esperclient
 from esperclient.rest import ApiException
 import datetime
-
-
-ACTIVE_DEVICE_LIST = []
-INACTIVE_DEVICE_LIST = []
-
-
-
 
 #### Enterprise Configuration #######
 
@@ -49,35 +23,19 @@ CONFIGURATION.per_page_limit = 5000
 CONFIGURATION.per_page_offset = 0
 
 
-
+# returns difference in time in seconds between two dates
 def get_time_diff(dt2, dt1):
-  print("new: ", dt2)
-  print("old: ", dt1)
+  #print("new: ", dt2)
+  #print("old: ", dt1)
   timedelta = dt2 - dt1
   return (timedelta.days * 24 * 3600 + timedelta.seconds)
 
-"""
-def get_uptime():
-    # create an instance of the API class
-    api_instance = esperclient.DeviceApi(esperclient.ApiClient(CONFIGURATION))
-    try:
-        api_response = api_instance.get_all_devices(ENTERPRISE_ID,
-                                                    limit=CONFIGURATION.per_page_limit,
-                                                    offset=CONFIGURATION.per_page_offset)
-        if len(api_response.results):
-            for device in api_response.results:
-                if device.device_name == "ESP-DMO-2N7Z":
-                    print(device.device_name)
-                    get_device_uptime(device)
-                    break
 
-    except ApiException as api_exception:
-        print("Exception when calling DeviceApi->get_all_devices: %s\n" % api_exception)
-
-"""
-
-def get_device_uptime(device_id):
-    prev = ""
+# print device downtime for each day in minutes
+# consider device downtime only if cloud doesn't receive status event in 3 minutes.
+# check back again for next event in every 2 minute
+def get_device_downtime(device_id):
+    last_status_event_time = ""
     downtime = 0
     api_instance = esperclient.DeviceApi(esperclient.ApiClient(CONFIGURATION))
     try:
@@ -85,17 +43,24 @@ def get_device_uptime(device_id):
             api_response = api_instance.get_device_event(ENTERPRISE_ID,device_id=device_id, latest_event=1)
             if len(api_response.results):
                 for event in api_response.results:
-                    new = event.created_on
-                    if (prev == ""):
-                        prev = new
+                    latest_status_event_time = event.created_on
+                    # initialize last status to current if just started
+                    if (last_status_event_time == ""):
+                        last_status_event_time = latest_status_event_time
+                        # new days has started, reset the downtime for this day and print
+                    if (last_status_event_time.date() != latest_status_event_time.date()):
+                        print("Downtime for: ", last_status_event_time.date(), " is: ", (downtime/60) ," minutes")
+                        downtime = 0
+                        # reset the latest_status_event_time and last_status_event_time to same and start again
+                        last_status_event_time = latest_status_event_time
                     # consider device downtime if it has not received status in 3 minutes
-                    if (downtime > 180):
-                        downtime = (downtime) + (get_time_diff(new, prev))
-                    prev = new
-            print("downtime: ", str(downtime))
+                    time_diff = (get_time_diff(latest_status_event_time, last_status_event_time))
+                    if time_diff > 180 :
+                        downtime = (downtime) + time_diff
+                    last_status_event_time = latest_status_event_time
+            print("downtime so far for", latest_status_event_time.date(), "is:", str(downtime/60), "minutes")
             # check back again for next status event in 60 seconds
-            time.sleep(60)
-
+            time.sleep(120)
 
     except ApiException as api_exception:
         print("Exception when calling DeviceApi->get_device_event: %s\n" % api_exception)
@@ -155,7 +120,7 @@ def main():
         sys.exit(1)
 
 
-    get_device_uptime(args.device_id)
+    get_device_downtime(args.device_id)
 
 
 if __name__ == "__main__":
