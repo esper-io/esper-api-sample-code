@@ -39,14 +39,14 @@ command_args = CommandArgs(
 )
 
 # int | Number of results to return per page. (optional) (default to 20)
-configuration.per_page_limit = 5000
+configuration.per_page_limit = 20
 # int | The initial index from which to return the results.(optional) default to 0)
 configuration.per_page_offset = 0
 
-allgroups = []
 
-# get all the groups id present in the enterprise and stores in allgroups[]
-def get_all_groups_in_enterprise():
+
+# get all the groups present in the enterprise and execute run_managed_configuration on each of them
+def managed_configuration_all_groups():
     # create an instance of the API class
     api_instance = esperclient.DeviceGroupApi(esperclient.ApiClient(configuration))
     try:
@@ -56,8 +56,8 @@ def get_all_groups_in_enterprise():
         if len(api_response.results):
             for group in api_response.results:
                 # add all the devices in this group to global list of devices
-                allgroups.append(group.id)
-        print(allgroups)
+                run_managed_configuration(group.id)
+        #print(allgroups)
 
     except ApiException as e:
         print("Exception when calling DeviceGroupApi->get_all_groups: %s\n" % e)
@@ -72,14 +72,14 @@ def get_all_groups_in_enterprise():
 ##  * inactive: Run commands on currently offline devices
 ##  * all: Run commands on all the devices. Commands will be queued for offline devices until they come back online.
 
-# contains the group id of all the groups in the enterprise
-def run_managed_configuration():
+# run this on each group one by one
+def run_managed_configuration(group_id):
 
     request = esperclient.V0CommandRequest(
         enterprise=enterprise_id,
         command_type="GROUP",
         device_type="all",
-        groups = allgroups,
+        groups = [group_id],
         command="UPDATE_DEVICE_CONFIG",
         command_args=command_args
     )
@@ -97,7 +97,8 @@ def run_managed_configuration():
         while status.state not in ["Command Success", "Command Failure", "Command TimeOut", "Command Cancelled", "Command Queued"]:
             response = api_instance.get_command_request_status(enterprise_id, request_id)
             status = response.results[0]
-            print(status)
+            time.sleep(1)
+            #print(status)
 
     except ApiException as e:
         print("Exception when calling CommandsV2Api->create_command: %s\n" % e)
@@ -107,8 +108,7 @@ def run_managed_configuration():
 Main Function
 """
 def main():
-    get_all_groups_in_enterprise()
-    run_managed_configuration()
+    managed_configuration_all_groups()
 
 if __name__ == "__main__":
     main()
