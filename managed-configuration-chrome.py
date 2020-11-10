@@ -28,7 +28,7 @@ command_args = CommandArgs(
     custom_settings_config={
         "managedAppConfigurations": {
             "com.android.chrome": {
-                "URLBlacklist": ["https://www.omegle.com/","Facebook.com","instagram.com"], # not allow these websites to work
+                "URLBlacklist": ["https://www.omegle.com/","facebook.com","instagram.com"], # not allow these websites to work
                 "URLWhitelist": ["*"], # rest all allowed to open
                 "IncognitoModeAvailability": "1",   # disable incognito mode
                 "ForceGoogleSafeSearch" : "true",   # enable safe search to work
